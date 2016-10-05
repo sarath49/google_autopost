@@ -1,0 +1,27 @@
+<?php
+
+/**
+ * @file
+ * Google+ Autopost install file.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function google_autopost_install() {
+  
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function google_autopost_uninstall() {
+  variable_del('google_autopost_client_id');
+  variable_del('google_autopost_client_secret');
+  variable_del('google_autopost_callback_uri');
+  variable_del('google_autopost_auth');
+  variable_del('google_autopost_token');
+  $t = get_t();
+  $message = $t('Google+ Autopost settings has been removed.');
+  drupal_set_message($message, 'status');
+}
