@@ -44,6 +44,20 @@ function google_autopost_settings($form, &$form_states) {
     '#required' => TRUE,
   );
   
+  $form['google_plus'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Google+ Account'),
+    '#description' => t('Fill in Google+ Account information.'),
+  );
+  $form['google_plus']['google_autopost_user_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Google+ User ID'),
+    '#description' => t('Submit the <a href="@link">Google+</a> User ID.', 
+        array('@link' => 'https://plus.google.com/')),
+    '#default_value' => variable_get('google_autopost_user_id', ''),
+    '#required' => TRUE,
+  );
+  
   return system_settings_form($form);
 }
 
@@ -96,29 +110,54 @@ function google_autopost_auth_form($form, &$form_states) {
         );
       }
       else {
+        try {
+          $client = _google_autopost_client($client_id, $client_secret, $callback_uri);
+          $client->setApprovalPrompt('force');
+          $auth_url = $client->createAuthUrl();
+
+          // Authentication URL.
+          $form['auth_url'] = array(
+            '#type' => 'hidden',
+            '#default_value' => $auth_url,
+          );
+
+          // Submit Button for Authentication.
+          $form['auth'] = array(
+            '#type' => 'submit',
+            '#value' => t('Authorize Google+ Autopost'),
+          ); 
+        } catch (Exception $e) {
+          $form['error'] = array(
+            '#type' => 'item',
+            '#title' => t('An Error has occured.'),
+            '#markup' => t('@data', array('@data' => $e->getMessage())),
+            '#prefix' => '<p>',
+            '#suffix' => '</p>',
+          );
+        }
         
-        $client = _google_autopost_client($client_id, $client_secret, $callback_uri);
-        $client->setApprovalPrompt('force');
-        $auth_url = $client->createAuthUrl();
-
-        // Authentication URL.
-        $form['auth_url'] = array(
-          '#type' => 'hidden',
-          '#default_value' => $auth_url,
-        );
-
-        // Submit Button for Authentication.
-        $form['auth'] = array(
-          '#type' => 'submit',
-          '#value' => t('Authorize Google+ Autopost'),
-        ); 
       }    
     }
     else {
     
       // Token data.
       $token_data = drupal_json_decode($token['access_token']);
-    
+      try {
+        libraries_load('google-api-php-client');
+        $client = _google_autopost_client($client_id, $client_secret, $callback_uri);
+        $plus = new Google_Service_Plus($client);
+        dpm($plus);
+        //$people = $plus->people;
+        //dpm($people);
+        //$result = $plus->people->get('me');
+        //dpm($result);
+        $me = $plus->people->get('me', ['fields' => 'id,gender,name,image,placesLived']);
+        dpm($me);
+      } catch (Exception $e) {
+         drupal_set_message($e);
+      }
+      
+      
       // Token fieldset.
       $form['token'] = array(
         '#type' => 'fieldset',
@@ -192,7 +231,7 @@ function google_autopost_auth_form_submit(&$form, &$form_state) {
 }
 
 /**
- * Page Callback for OAuth authentication.
+ * Page Callback for OAuth2 authentication.
  */
 function google_autopost_oauth_callback() {
   
@@ -207,7 +246,7 @@ function google_autopost_oauth_callback() {
     try {
     $client_id = variable_get('google_autopost_client_id', NULL);
     $client_secret = variable_get('google_autopost_client_secret', NULL);
-    $callback_uri = variable_get('google_autopost_callback_uri', '');
+    $callback_uri = variable_get('google_autopost_callback_uri', NULL);
     $client = _google_autopost_client($client_id, $client_secret, $callback_uri);
     $client->setApprovalPrompt('force');
     $client->authenticate($_GET['code']);
@@ -245,9 +284,14 @@ function _google_autopost_client($client_id, $client_secret, $callback_uri){
   $client->setClientId($client_id);
   $client->setClientSecret($client_secret);
   $client->setRedirectUri($base_url . '/'. $callback_uri );
+ /* $client->addScope(array(
+    'https://www.googleapis.com/auth/plus.me',
+    'https://www.googleapis.com/auth/plus.stream.write',
+    ));
+*/
   $client->addScope(
     array(
-      Google_Service_PlusDomains::PLUS_ME, 
+      Google_Service_Plus::PLUS_ME, 
       Google_Service_PlusDomains::PLUS_STREAM_WRITE
     )
   );

@@ -62,9 +62,10 @@ function google_autopost_libraries_info() {
 function google_autopost_menu() {
   return array(
     
-    // OAuth Page Callback.
-    variable_get('google_autopost_callback_uri', 'google-autopost/oauth') => array(
+    // OAuth2 Page Callback.
+    variable_get('google_autopost_callback_uri', '') => array(
       'title' => 'Google OAuth',
+      // Access callback is set to TRUE, to allow all request.
       'access callback' => TRUE,
       'page callback' => 'drupal_get_form',
       'page arguments' => array('google_autopost_oauth_callback'),
@@ -73,6 +74,7 @@ function google_autopost_menu() {
       'file path' => drupal_get_path('module', 'google_autopost') . '/includes/',
     ),
     
+    // Administration 
     'admin/config/services/google-autopost' => array(
       'title' => 'Google+ Autopost',
       'description' => 'Google+ Autopost configuration.',
@@ -83,11 +85,13 @@ function google_autopost_menu() {
       'file path' => drupal_get_path('module', 'google_autopost') . '/includes/',
     ),
     
+    // Tab to Google+ Credentials page.
     'admin/config/services/google-autopost/default' => array(
       'title' => 'Settings',
       'type' => MENU_DEFAULT_LOCAL_TASK,
     ),
     
+    // Administration URI for Google+ Authentication and Check Token information.
     'admin/config/services/google-autopost/auth' => array(
       'title' => 'Google+ Auth',
       'description'=> 'Google+ authentication page.',
@@ -106,8 +110,13 @@ function google_autopost_menu() {
  */
 function google_autopost_permission() {
   return array(
+    // Permission to administer Google+ Autopost.
     'google autopost administer' => array(
       'title' => t('Administer Google+ Autopost Configuration.'),
+    ),
+    // Permission to post to Google+ Stream.
+    'google autopost to stream' => array(
+      'title' => t('Allow Google+ Autopost to stream.'),
     ),
   );
 }
@@ -116,29 +125,79 @@ function google_autopost_permission() {
  * Implements hook_node_insert().
  */
 function google_autopost_node_insert($node) {
+  
+  // Get last updated token information from variable table.
   $token = variable_get('google_autopost_token', NULL);
-  if (isset($token)){
+  // Get client ID from variable table.
+  $client_id = variable_get('google_autopost_client_id', NULL);
+  // Get Client Secret from variable table.
+  $client_secret = variable_get('google_autopost_client_secret', NULL);
+  // Get Callback URI from variable table.
+  $callback_uri = variable_get('google_autopost_callback_uri', NULL);
+
+  // Check if requrired information are met to post data to Google+ Stream.
+  if (isset($token) 
+      && isset($client_id)
+      && isset($client_secret)
+      && isset($callback_uri)
+      && user_access('google autopost to stream')){
+    
     $info = libraries_load('google-api-php-client');
+    // Check if Google API client library for PHP is available.
     if (!$info['loaded']) {
-      drupal_set_message(t("Can't authenticate with google as library is missing check Status report or Readme for requirements"), 'error');
+      drupal_set_message(t("Can't authenticate with google as library is missing check <a href='@link'>Status Report</a> or Readme for requirements", 
+          array('@link' => url('admin/reports/status'))), 'error');
     }
+    // If library available, then allow to post to Google+ Stream
     else {
+      // Site $base_url.
+      global $base_url;
+      
+      // Create an instance of Google Client class.
       $client = new Google_Client();
-      $client->setAuthConfigFile(drupal_get_path('module', 'google_autopost') . '/client_secret.json');
-      $client->setClientId('134841409062-jgr7f5oti1sm208k5t9np9pkfklfeiht.apps.googleusercontent.com');
-      $client->setClientSecret('_PmfdVnxT6JcMQrkHsBMTMPJ');
-      $client->setRedirectUri('http://localhost:8081/gp/google/oauth');
+      // Set Client ID.
+      $client->setClientId($client_id);
+      // Set Client Secret.
+      $client->setClientSecret($client_secret);
+      // Set Callback URI.
+      $client->setRedirectUri($base_url . '/'. $callback_uri );
+      // Set Scopes for Google+ Domains API.
       $client->addScope(
         array(
           Google_Service_PlusDomains::PLUS_ME, 
           Google_Service_PlusDomains::PLUS_STREAM_WRITE
-         )
-        );
+        )
+      );
+      // Set Access Type to offline.
       $client->setAccessType("offline");
-    
+      // Decode JSON information to array.
+      $token_data = drupal_json_decode($token['access_token']);
+      // Set Access Token we previous generated.
+      $client->setAccessToken($token_data->access_token);
+      // Check if current Access Token has expired.
+      if ($client->isAccessTokenExpired()) {
+        // If yes Refresh Token.
+        $client->refreshToken($token_data->refresh_token);
+        // Get latest access_token.
+        $access_token = $client->getAccessToken();
+        // Get latest refresh_token
+        $refresh_token = $tokens_decoded->refresh_token;
+        // Store new data in array.
+        $data = array(
+          'access_token' => $access_token,
+          'refresh_token' => $refresh_token,
+          'created' => REQUEST_TIME,
+        );
+        // Save new token information in variable table.
+        variable_set('google_autopost_token', $data);
+        if ($client->getAccessToken()) {
+          
+        }
+      }
     } 
   }
+  // Will be removed later.
   else {
-    drupal_set_message(t('Google+ Autopost configured.'), 'error');
+    drupal_set_message(t('You are doomed.'), 'error');
   }
 }
