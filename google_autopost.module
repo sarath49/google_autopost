@@ -23,8 +23,8 @@ function google_autopost_libraries_info() {
   set_include_path($path."/src/" . PATH_SEPARATOR . get_include_path());
   $libraries['google-api-php-client'] = array(
     'name' => 'Google OAuth2 Library',
-    'vendor url' => 'http://code.google.com/p/google-api-php-client',
-    'download url' => 'http://github.com/google/google-api-php-client/archive/master.zip',
+    'vendor url' => 'https://github.com/google/google-api-php-client',
+    'download url' => 'https://github.com/google/google-api-php-client/tree/1.1.5',
     'version arguments' => array(
       'file' => 'src/Google/Client.php',
       'pattern' => '/LIBVER = "([0-9\.a-z]+)/',
@@ -116,40 +116,29 @@ function google_autopost_permission() {
  * Implements hook_node_insert().
  */
 function google_autopost_node_insert($node) {
-   $info = libraries_load('google-api-php-client');
-   if (!$info['loaded']) {
-    drupal_set_message(t("Can't authenticate with google as library is missing check Status report or Readme for requirements"), 'error');
+  $token = variable_get('google_autopost_token', NULL);
+  if (isset($token)){
+    $info = libraries_load('google-api-php-client');
+    if (!$info['loaded']) {
+      drupal_set_message(t("Can't authenticate with google as library is missing check Status report or Readme for requirements"), 'error');
+    }
+    else {
+      $client = new Google_Client();
+      $client->setAuthConfigFile(drupal_get_path('module', 'google_autopost') . '/client_secret.json');
+      $client->setClientId('134841409062-jgr7f5oti1sm208k5t9np9pkfklfeiht.apps.googleusercontent.com');
+      $client->setClientSecret('_PmfdVnxT6JcMQrkHsBMTMPJ');
+      $client->setRedirectUri('http://localhost:8081/gp/google/oauth');
+      $client->addScope(
+        array(
+          Google_Service_PlusDomains::PLUS_ME, 
+          Google_Service_PlusDomains::PLUS_STREAM_WRITE
+         )
+        );
+      $client->setAccessType("offline");
+    
+    } 
   }
   else {
-    // @see https://www.yoctopuce.com/EN/interactive/OAuth2/
-    $refresh_token = '4/HAkrF9jpoMQB0zW7xL2TAlZSlrruWdoZnPbnqA6E';
-    $client = new Google_Client();
-    $client->setAuthConfigFile(drupal_get_path('module', 'google_autopost') . '/client_secret.json');
-    $client->setClientId('134841409062-jgr7f5oti1sm208k5t9np9pkfklfeiht.apps.googleusercontent.com');
-    $client->setClientSecret('_PmfdVnxT6JcMQrkHsBMTMPJ');
-    $client->setRedirectUri('http://localhost:8081/gp/google/oauth');
-    $client->addScope(
-        array(
-         Google_Service_PlusDomains::PLUS_ME, 
-         Google_Service_PlusDomains::PLUS_STREAM_WRITE
-        )
-      );
-    $client->setAccessType("offline");
-   
-    /*if ($client->isAccessTokenExpired()) {
-      $client->refreshToken($refresh_token);
-    }
-  
-    if ($token = $client->getAccessToken()) {
-      $plus = new Google_Service_Plus($client);
-      dpm($token);
-    }*/
-    $authUrl = $client->createAuthUrl();
-    
-    //dpm($client->refreshToken('sdfdsfsdfsdfaf '));
-     //dpm($client->getAccessToken());
-    //$plus = new Google_Service_Plus($client);
-     
-    //dpm($plus);
+    drupal_set_message(t('Google+ Autopost configured.'), 'error');
   }
 }

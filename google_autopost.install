@@ -6,6 +6,36 @@
  */
 
 /**
+ * Implements hook_requirements().
+ */
+function google_autopost_requirements($phase) {
+  $requirements = array();
+  
+  // Declaring a variable for localization at install time.
+  $t = get_t();
+  
+  // Check to see if google-api-php-client library is available.
+  if ($phase == 'runtime') {
+    $library = libraries_detect('google-api-php-client');
+    $requirements['google-api-php-client'] = array('title' => $t('Google+ Autopost'));
+
+    if ($library['installed']) {
+      $requirements['google-api-php-client']['value'] = '<p>'. $t('Google APIs Client Library for PHP found version !version', 
+          array('!version' => $library['version'])) . '</p>';
+      $requirements['google-api-php-client']['severity'] = REQUIREMENT_OK;
+    }
+    else {
+      $requirements['google-api-php-client']['value'] = $t('<p>Google APIs Client Library for PHP not found.</p>');
+      $requirements['google-api-php-client']['severity'] = REQUIREMENT_ERROR;
+      $requirements['google-api-php-client']['description'] = $t('<br>Download <a href="!link">Google APIs Client Library for PHP</a> and extract the zip file to libraries folder.', 
+          array('!link' => $library['download url']));
+    }
+  }
+  
+  return $requirements;
+}
+
+/**
  * Implements hook_install().
  */
 function google_autopost_install() {
