@@ -78,6 +78,10 @@ Google+ Domains API and has limited scope of just writing into streams.
 only visible to users belonging to same domain. If you want some post to be
 visible publicly then you will have to perform it manually.
 
+3. If you post link as content of article to be posted, which what this module
+does now the content accessible publicly will be rendered by Google+ Streams to
+display images, videos, title & text automatically. 
+
 Maintainers
 -----------
 
