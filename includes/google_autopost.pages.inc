@@ -52,9 +52,9 @@ function google_autopost_settings($form, &$form_states) {
   $form['google_plus']['google_autopost_user_id'] = array(
     '#type' => 'textfield',
     '#title' => t('Google+ User ID'),
-    '#description' => t('Submit the <a href="@link">Google+</a> User ID.', 
+    '#description' => t('Submit the <a href="@link">Google+</a> user ID or leave default.', 
         array('@link' => 'https://plus.google.com/')),
-    '#default_value' => variable_get('google_autopost_user_id', ''),
+    '#default_value' => variable_get('google_autopost_user_id', 'me'),
     '#required' => TRUE,
   );
   
@@ -144,15 +144,8 @@ function google_autopost_auth_form($form, &$form_states) {
       $token_data = drupal_json_decode($token['access_token']);
       try {
         libraries_load('google-api-php-client');
-        $client = _google_autopost_client($client_id, $client_secret, $callback_uri);
-        $plus = new Google_Service_Plus($client);
-        dpm($plus);
-        //$people = $plus->people;
-        //dpm($people);
-        //$result = $plus->people->get('me');
-        //dpm($result);
-        $me = $plus->people->get('me', ['fields' => 'id,gender,name,image,placesLived']);
-        dpm($me);
+            
+       
       } catch (Exception $e) {
          drupal_set_message($e);
       }
@@ -267,35 +260,4 @@ function google_autopost_oauth_callback() {
     }
     drupal_goto('admin/config/services/google-autopost/auth');
   }
-}
-
-/**
- * Helper function for Google client.
- * @param type $client_id string
- * @param type $client_secret string
- * @param type $callback_uri string
- * @return \Google_Client object
- */
-function _google_autopost_client($client_id, $client_secret, $callback_uri){
-    
-  global $base_url;
-    
-  $client = new Google_Client();
-  $client->setClientId($client_id);
-  $client->setClientSecret($client_secret);
-  $client->setRedirectUri($base_url . '/'. $callback_uri );
- /* $client->addScope(array(
-    'https://www.googleapis.com/auth/plus.me',
-    'https://www.googleapis.com/auth/plus.stream.write',
-    ));
-*/
-  $client->addScope(
-    array(
-      Google_Service_Plus::PLUS_ME, 
-      Google_Service_PlusDomains::PLUS_STREAM_WRITE
-    )
-  );
-  $client->setAccessType("offline");
-   
-  return $client;
 }

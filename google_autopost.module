@@ -134,13 +134,13 @@ function google_autopost_node_insert($node) {
   $client_secret = variable_get('google_autopost_client_secret', NULL);
   // Get Callback URI from variable table.
   $callback_uri = variable_get('google_autopost_callback_uri', NULL);
-
+  
   // Check if requrired information are met to post data to Google+ Stream.
   if (isset($token) 
       && isset($client_id)
       && isset($client_secret)
       && isset($callback_uri)
-      && user_access('google autopost to stream')){
+      && user_access('google autopost to stream')) {
     
     $info = libraries_load('google-api-php-client');
     // Check if Google API client library for PHP is available.
@@ -150,38 +150,22 @@ function google_autopost_node_insert($node) {
     }
     // If library available, then allow to post to Google+ Stream
     else {
-      // Site $base_url.
-      global $base_url;
-      
-      // Create an instance of Google Client class.
-      $client = new Google_Client();
-      // Set Client ID.
-      $client->setClientId($client_id);
-      // Set Client Secret.
-      $client->setClientSecret($client_secret);
-      // Set Callback URI.
-      $client->setRedirectUri($base_url . '/'. $callback_uri );
-      // Set Scopes for Google+ Domains API.
-      $client->addScope(
-        array(
-          Google_Service_PlusDomains::PLUS_ME, 
-          Google_Service_PlusDomains::PLUS_STREAM_WRITE
-        )
-      );
-      // Set Access Type to offline.
-      $client->setAccessType("offline");
+      // Get Google_Client object instance.
+      $client = _google_autopost_client($client_id, $client_secret, $callback_uri);
       // Decode JSON information to array.
       $token_data = drupal_json_decode($token['access_token']);
       // Set Access Token we previous generated.
-      $client->setAccessToken($token_data->access_token);
+      $client->setAccessToken($token['access_token']);
       // Check if current Access Token has expired.
       if ($client->isAccessTokenExpired()) {
         // If yes Refresh Token.
-        $client->refreshToken($token_data->refresh_token);
+        $client->refreshToken($token_data['refresh_token']);
         // Get latest access_token.
         $access_token = $client->getAccessToken();
+        // Decode JSON data.
+        $tokens_decoded = drupal_json_decode($access_token);
         // Get latest refresh_token
-        $refresh_token = $tokens_decoded->refresh_token;
+        $refresh_token = $tokens_decoded['refresh_token'];
         // Store new data in array.
         $data = array(
           'access_token' => $access_token,
@@ -189,15 +173,80 @@ function google_autopost_node_insert($node) {
           'created' => REQUEST_TIME,
         );
         // Save new token information in variable table.
-        variable_set('google_autopost_token', $data);
-        if ($client->getAccessToken()) {
-          
-        }
+        variable_set('google_autopost_token', $data); 
       }
-    } 
-  }
-  // Will be removed later.
-  else {
-    drupal_set_message(t('You are doomed.'), 'error');
-  }
+      
+        if ($token_data = $client->getAccessToken()) {
+          // Create PlusDomains instance.
+          $plus = new Google_Service_PlusDomains($client);
+          // Decode JSON token information.
+          $token = drupal_json_decode($token_data);
+          //Data to be send.
+          $data = array(
+              'object' => array(
+                // This content will be posted in Stream.
+                // Modify as per your need.
+                // If Content contains public URL,
+                // the content will be parsed from URL.
+                'originalContent' => url('node/' . $node->nid, 
+                    array('absolute' => TRUE)),
+              ),
+              'access' => array(
+                 'items' => array(
+                   'type' => 'domain',
+                 ),
+                'domainRestricted' => true,
+              ),
+            );
+          $options = array(
+              'method' => 'POST',
+              'timeout' => 15,
+              // This data will will be send to Google+ Stream.
+              'data' => json_encode($data),
+              'headers' => array(
+                'Content-Type' => 'application/json',
+                'Authorization' => "OAuth " . $token['access_token'],
+              ),
+            );
+          $user_id = variable_get('google_autopost_user_id', 'me');
+          $response = drupal_http_request('https://www.googleapis.com/plusDomains/v1/people/' . $user_id . '/activities', 
+              $options);
+          // Add response to watchdog.
+          $message = 'Response : ' . json_encode($response);
+          watchdog('google_autopost', $message, $variables = array(), WATCHDOG_INFO);
+        }
+    }
+  } 
+}
+
+
+/**
+ * Helper function for Google client.
+ * @param type $client_id string
+ * @param type $client_secret string
+ * @param type $callback_uri string
+ * @return \Google_Client object
+ */
+function _google_autopost_client($client_id, $client_secret, $callback_uri){
+  // Site base url.
+  global $base_url;
+    
+  $client = new Google_Client();
+  // Set Client ID.
+  $client->setClientId($client_id);
+  // Set Client Secret.
+  $client->setClientSecret($client_secret);
+  // Set Callback URI.
+  $client->setRedirectUri($base_url . '/'. $callback_uri );
+  // Add Scopes.
+  $client->addScope(
+    array(
+      Google_Service_Plus::PLUS_ME, 
+      Google_Service_PlusDomains::PLUS_STREAM_WRITE,
+    )
+  );
+  // Set Access Type.
+  $client->setAccessType("offline");
+   
+  return $client;
 }

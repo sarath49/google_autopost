@@ -51,6 +51,7 @@ function google_autopost_uninstall() {
   variable_del('google_autopost_callback_uri');
   variable_del('google_autopost_auth');
   variable_del('google_autopost_token');
+  variable_del('google_autopost_user_id');
   $t = get_t();
   $message = $t('Google+ Autopost settings has been removed.');
   drupal_set_message($message, 'status');
